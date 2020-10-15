@@ -1,0 +1,27 @@
+# Ensures you do not inherit an AzContext in your runbook
+Disable-AzContextAutosave –Scope Process
+
+$connection = Get-AutomationConnection -Name AzureRunAsConnection
+
+# Wrap authentication in retry logic for transient network failures
+$logonAttempt = 0
+while(!($connectionResult) -and ($logonAttempt -le 10))
+{
+    $LogonAttempt++
+    # Logging in to Azure...
+    $connectionResult = Connect-AzAccount `
+                            -ServicePrincipal `
+                            -Tenant $connection.TenantID `
+                            -ApplicationId $connection.ApplicationID `
+                            -CertificateThumbprint $connection.CertificateThumbprint
+
+    Start-Sleep -Seconds 30
+}
+
+$AzureContext = Get-AzSubscription -SubscriptionId $connection.SubscriptionID
+
+New-AzResourceGroup -Name myResourceGroup -Location EastUS
+
+New-AzResourceGroupDeployment -Name ExampleDeployment -ResourceGroupName ExampleResourceGroup `
+  -TemplateUri https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/101-storage-account-create/azuredeploy.json `
+  -TemplateParameterUri https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/101-storage-account-create/azuredeploy.parameters.json
